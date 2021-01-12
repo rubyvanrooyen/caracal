@@ -163,7 +163,7 @@ mapping:
         example: '2'
       img_stokes:
         type: str
-        enum: ["I","QU","IQU","IQUV"]
+        enum: ["I","QU","QUV","IQU","IQUV"]
         desc: Stokes image to create.
         required: false
         example: 'I'

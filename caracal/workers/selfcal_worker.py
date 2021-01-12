@@ -474,11 +474,7 @@ def worker(pipeline, recipe, config):
             "threads": ncpu_img,
             "absmem" : absmem,
         }
-        if config['img_join_polarizations'] is False:
-            fake_image_opts.update({
-                "fit-spectral-pol": config['img_specfit_nrcoeff'],
-            })
-        if config['img_specfit_nrcoeff'] > 0:
+        if config['img_join_polarizations'] is False and config['img_specfit_nrcoeff'] > 0:
             fake_image_opts["fit-spectral-pol"] = config['img_specfit_nrcoeff']
         if not config['img_mfs_weighting']:
             fake_image_opts["nomfsweighting"] = True
