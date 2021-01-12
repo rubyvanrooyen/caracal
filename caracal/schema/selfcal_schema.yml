@@ -146,6 +146,16 @@ mapping:
         desc: Join channels to create MFS image.
         required: false
         example: 'True'
+      img_squared_chansjoin:
+        type: bool
+        desc: Search peaks in the sum of Q^2 and/or U^2 image to clean. If 'join-polarisations' will set to True peaks will be search in the sum of Q^2+U^2.
+        required: false
+        example: 'False'
+      img_join_polarizations:
+        type: bool
+        desc: In combination with 'img_squared_chansjoin' will clean the image searching the peaks in the sum of Q^2+U^2.
+        required: false
+        example: 'False'
       img_specfit_nrcoeff:
         type: int
         desc: Number of spectral polynomial terms to fit to each clean component. This is equal to the order of the polynomial plus 1. Use 0 to disable spectral fitting. Note that spectral fitting is required if you want to do subsequent continumm subtraction using crystalball. 
@@ -153,8 +163,8 @@ mapping:
         example: '2'
       img_stokes:
         type: str
-        enum: ["I"]
-        desc: Stokes image to create. For this first release of CARACal, the only option is 'I'.  
+        enum: ["I","QU","IQU","IQUV"]
+        desc: Stokes image to create.
         required: false
         example: 'I'
       img_multiscale:

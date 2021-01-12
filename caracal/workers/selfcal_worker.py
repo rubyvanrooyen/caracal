@@ -463,6 +463,8 @@ def worker(pipeline, recipe, config):
             "pol": config['img_stokes'],
             "channelsout": config['img_nchans'],
             "joinchannels": config['img_joinchans'],
+            "squared-channel-joining": config['img_squared_chansjoin'],
+            "join-polarizations": config['img_join_polarizations'],
             "local-rms": False,
             "auto-mask": 6,
             "auto-threshold": config[key]['clean_cutoff'][0],
@@ -472,6 +474,10 @@ def worker(pipeline, recipe, config):
             "threads": ncpu_img,
             "absmem" : absmem,
         }
+        if config['img_join_polarizations'] is False:
+            fake_image_opts.update({
+                "fit-spectral-pol": config['img_specfit_nrcoeff'],
+            })
         if config['img_specfit_nrcoeff'] > 0:
             fake_image_opts["fit-spectral-pol"] = config['img_specfit_nrcoeff']
         if not config['img_mfs_weighting']:
@@ -524,26 +530,28 @@ def worker(pipeline, recipe, config):
         step = 'image-field{0:d}-iter{1:d}'.format(trg, num)
         image_opts = {
             "msname": mslist,
+            "prefix": '{0:s}/{1:s}_{2:s}_{3:d}'.format(img_dir, prefix, field, num),
             "column": imcolumn,
             "weight": imgweight if not imgweight == 'briggs' else 'briggs {}'.format(robust),
             "nmiter": sdm.dismissable(config['img_nmiter']),
             "npix": config['img_npix'],
             "padding": config['img_padding'],
             "scale": config['img_cell'],
-            "prefix": '{0:s}/{1:s}_{2:s}_{3:d}'.format(img_dir, prefix, field, num),
             "niter": config['img_niter'],
             "gain": config["img_gain"],
             "mgain": config['img_mgain'],
             "pol": config['img_stokes'],
             "channelsout": config['img_nchans'],
             "joinchannels": config['img_joinchans'],
+            "squared-channel-joining": config['img_squared_chansjoin'],
+            "join-polarizations": config['img_join_polarizations'],
             "auto-threshold": config[key]['clean_cutoff'][num-1 if len(config[key]['clean_cutoff']) >= num else -1],
             "parallel-deconvolution": sdm.dismissable(wscl_parallel_deconv),
             "nwlayers-factor": nwlayers_factor,
             "threads": ncpu_img,
             "absmem": absmem,
         }
-        if config['img_specfit_nrcoeff'] > 0:
+        if config['img_join_polarizations'] is False and config['img_specfit_nrcoeff'] > 0:
             image_opts["fit-spectral-pol"] = config['img_specfit_nrcoeff']
             if config['img_niter'] > 0:
                 image_opts["savesourcelist"] = True
@@ -568,6 +576,7 @@ def worker(pipeline, recipe, config):
         mask_key = config[key]['cleanmask_method'][num-1 if len(config[key]['cleanmask_method']) >= num else -1]
         if mask_key == 'wsclean':
             image_opts.update({
+                "pol": config['img_stokes'],
                 "auto-mask": config[key]['cleanmask_thr'][num-1 if len(config[key]['cleanmask_thr']) >= num else -1],
                 "local-rms": config[key]['cleanmask_localrms'][num-1 if len(config[key]['cleanmask_localrms']) >= num else -1],
               })
@@ -575,16 +584,62 @@ def worker(pipeline, recipe, config):
                 image_opts.update({
                     "local-rms-window": config[key]['cleanmask_localrms_window'][num-1 if len(config[key]['cleanmask_localrms_window']) >= num else -1],
                   })
+            recipe.add('cab/wsclean', step,
+                       image_opts,
+                       input=pipeline.input,
+                       output=pipeline.output,
+                       label='{:s}:: Make wsclean image (selfcal iter {})'.format(step, num))
         elif mask_key == 'sofia':
-            fits_mask = 'masking/{0:s}_{1:s}_{2:d}_clean_mask.fits'.format(
-                prefix,field, num)
-            if not os.path.isfile('{0:s}/{1:s}'.format(pipeline.output,fits_mask)):
-                raise caracal.ConfigurationError("SoFiA clean mask {0:s}/{1:s} not found. Something must have gone wrong with the SoFiA run"\
-                    " (maybe the detection threshold was too high?). Please check the logs.".format(pipeline.output,fits_mask))
-            image_opts.update({
-                "fitsmask": '{0:s}:output'.format(fits_mask),
-                "local-rms": False,
-              })
+            for stokes in config['img_stokes']:
+                fits_mask = 'masking/{0:s}_{1:s}_{2:d}_{3:s}_clean_mask.fits'.format(prefix, field, num, stokes)
+                if not os.path.isfile('{0:s}/{1:s}'.format(pipeline.output, fits_mask)):
+                    raise caracal.ConfigurationError(
+                        "SoFiA clean mask {0:s}/{1:s} not found. Something must have gone wrong with the SoFiA run" \
+                        " (maybe the detection threshold was too high?). Please check the logs.".format(pipeline.output,fits_mask))
+                image_opts.update({
+                    "pol": stokes,
+                    "fitsmask": '{0:s}:output'.format(fits_mask),
+                    "local-rms": False,
+                })
+                recipe.add('cab/wsclean', step + "_" + stokes,
+                           image_opts,
+                           input=pipeline.input,
+                           output=pipeline.output,
+                           label='{:s}:: Make wsclean image (selfcal iter {})'.format(step, num, stokes))
+                recipe.run()
+                recipe.jobs = []
+                # modify image names before next stokes
+                posname = '{0:s}/{1:s}/{2:s}_{3:s}'.format(pipeline.output, img_dir, prefix, field)
+                llist = list(set(glob.glob('{0:s}_{1:s}'.format(posname, '*psf.fits'))) -
+                             set(glob.glob('{0:s}_{1:s}'.format(posname, '*I-psf.fits'))) -
+                             set(glob.glob('{0:s}_{1:s}'.format(posname, '*Q-psf.fits'))) -
+                             set(glob.glob('{0:s}_{1:s}'.format(posname, '*U-psf.fits'))))
+                for fname in llist:
+                    os.rename(fname, fname[:-8] + stokes + "-psf.fits")
+                llist = list(set(glob.glob('{0:s}_{1:s}'.format(posname, '*dirty.fits'))) -
+                             set(glob.glob('{0:s}_{1:s}'.format(posname, '*I-dirty.fits'))) -
+                             set(glob.glob('{0:s}_{1:s}'.format(posname, '*Q-dirty.fits'))) -
+                             set(glob.glob('{0:s}_{1:s}'.format(posname, '*U-dirty.fits'))))
+                for fname in llist:
+                    os.rename(fname, fname[:-10] + stokes + "-dirty.fits")
+                llist = list(set(glob.glob('{0:s}_{1:s}'.format(posname, '*image.fits'))) -
+                             set(glob.glob('{0:s}_{1:s}'.format(posname, '*I-image.fits'))) -
+                             set(glob.glob('{0:s}_{1:s}'.format(posname, '*Q-image.fits'))) -
+                             set(glob.glob('{0:s}_{1:s}'.format(posname, '*U-image.fits'))))
+                for fname in llist:
+                    os.rename(fname, fname[:-10] + stokes + "-image.fits")
+                llist = list(set(glob.glob('{0:s}_{1:s}'.format(posname, '*model.fits'))) -
+                             set(glob.glob('{0:s}_{1:s}'.format(posname, '*I-model.fits'))) -
+                             set(glob.glob('{0:s}_{1:s}'.format(posname, '*Q-model.fits'))) -
+                             set(glob.glob('{0:s}_{1:s}'.format(posname, '*U-model.fits'))))
+                for fname in llist:
+                    os.rename(fname, fname[:-10] + stokes + "-model.fits")
+                llist = list(set(glob.glob('{0:s}_{1:s}'.format(posname, '*residual.fits'))) -
+                             set(glob.glob('{0:s}_{1:s}'.format(posname, '*I-residual.fits'))) -
+                             set(glob.glob('{0:s}_{1:s}'.format(posname, '*Q-residual.fits'))) -
+                             set(glob.glob('{0:s}_{1:s}'.format(posname, '*U-residual.fits'))))
+                for fname in llist:
+                    os.rename(fname, fname[:-13] + stokes + "-residual.fits")
         else:
             fits_mask = 'masking/{0:s}_{1:s}.fits'.format(
                 mask_key, field)
@@ -592,26 +647,26 @@ def worker(pipeline, recipe, config):
                 raise caracal.ConfigurationError("Clean mask {0:s}/{1:s} not found. Please make sure that you have given the correct mask label"\
                     " in cleanmask_method, and that the mask exists.".format(pipeline.output, fits_mask))
             image_opts.update({
+                "pol": config['img_stokes'],
                 "fitsmask": '{0:s}:output'.format(fits_mask),
                 "local-rms": False,
               })
+            recipe.add('cab/wsclean', step,
+                       image_opts,
+                       input=pipeline.input,
+                       output=pipeline.output,
+                       label='{:s}:: Make wsclean image (selfcal iter {})'.format(step, num))
 
-        recipe.add('cab/wsclean', step,
-                   image_opts,
-                   input=pipeline.input,
-                   output=pipeline.output,
-                   label='{:s}:: Make wsclean image (selfcal iter {})'.format(step, num))
-
-    def sofia_mask(trg, num, img_dir, field):
-        step = 'make-sofia_mask-field{0:d}-iter{1:d}'.format(trg,num)
+    def sofia_mask(trg, num, img_dir, field, stokes):
+        step = 'make-sofia_mask-field{0:d}-iter{1:d}-{2:s}'.format(trg,num,stokes)
         key = 'img_sofia_settings'
 
         if config['img_joinchans'] == True:
-            imagename = '{0:s}/{1:s}_{2:s}_{3:d}-MFS-image.fits'.format(
-                img_dir, prefix, field, num)
+            imagename = '{0:s}/{1:s}_{2:s}_{3:d}-MFS-{4:s}-image.fits'.format(
+                img_dir, prefix, field, num, stokes)
         else:
-            imagename = '{0:s}/{1:s}_{2:s}_{3:d}-image.fits'.format(
-                img_dir, prefix, field, num)
+            imagename = '{0:s}/{1:s}_{2:s}_{3:d}-{4:s}-image.fits'.format(
+                img_dir, prefix, field, num, stokes)
 
         if config[key]['fornax_special'] == True and config[key]['fornax_sofia'] == True:
             forn_kernels = [[80, 80, 0, 'b']]
@@ -651,7 +706,7 @@ def worker(pipeline, recipe, config):
                 "merge.minSizeZ": 1,
             }
 
-        outmask = pipeline.prefix+'_'+field+'_'+str(num+1)+'_clean'
+        outmask = pipeline.prefix+'_'+field+'_'+str(num+1)+ '_' + stokes +'_clean'
         outmaskName = outmask+'_mask.fits'
 
         sofia_opts = {
@@ -846,6 +901,7 @@ def worker(pipeline, recipe, config):
                    output=pipeline.output+'/masking/',
                    label='{0:s}:: Make SoFiA mask'.format(step))
 
+    #no changes made
     def make_cube(num, img_dir, field, imtype='model'):
         im = '{0:s}/{1:s}_{2:s}_{3}-cube.fits:output'.format(
             img_dir, prefix, field, num)
@@ -865,6 +921,7 @@ def worker(pipeline, recipe, config):
 
         return im
 
+    #no changes made
     def extract_sources(trg, num, img_dir, field):
         key = 'extract_sources'
         if config[key]['detection_image']:
@@ -953,7 +1010,7 @@ def worker(pipeline, recipe, config):
                        output=pipeline.output,
                        label='{0:s}:: Convert extracted sources to tigger model'.format(step))
 
-
+    #not used
     def predict_from_fits(num, model, index, img_dir, mslist, field):
         if isinstance(model, str) and len(model.split('+')) == 2:
             combine = True
@@ -992,6 +1049,7 @@ def worker(pipeline, recipe, config):
             output=pipeline.output,
             label='{0:s}:: Predict from FITS ms={1:s}'.format(step, mslist[index]))
 
+    #no changes made
     def combine_models(models, num, img_dir, field, enable=True):
         model_names = ['{0:s}/{1:s}_{2:s}_{3:s}-pybdsm.lsm.html:output'.format(get_dir_path("{0:s}/image_{1:d}".format(pipeline.continuum, int(m)),pipeline), prefix, field, m) for m in models]
 
@@ -1015,6 +1073,7 @@ def worker(pipeline, recipe, config):
 
         return calmodel, model_names_fits
 
+    #no changes made
     def calibrate_meqtrees(trg, num, prod_path, img_dir, mslist, field):
         key = 'calibrate'
         global reset_cal, trace_SN, trace_matrix
@@ -1215,6 +1274,7 @@ def worker(pipeline, recipe, config):
                        output=op_dir,
                        label="{0:s}:: Calibrate step {1:d} ms={2:s}".format(step, num, msname))
 
+    #no changes made
     def calibrate_cubical(trg, num, prod_path, img_dir, mslist, field):
         key = 'calibrate'
 
@@ -1442,6 +1502,7 @@ def worker(pipeline, recipe, config):
                        shared_memory= config['cal_cubical']['shared_mem'],
                        label="{0:s}:: Calibrate step {1:d} ms={2:s}".format(step, num, msname))
 
+    #no changes made
     def restore(num,  prod_path,mslist_out,enable_inter=True):
         key = 'calibrate'
 	    # to achieve accurate restauration we need to reset all parameters properly
@@ -1767,6 +1828,7 @@ def worker(pipeline, recipe, config):
             # Empty job que after execution
             recipe.jobs = []
 
+    #no changes made
     def get_aimfast_data(filename='{0:s}/{1:s}_fidelity_results.json'.format(
                             pipeline.output, prefix)):
         "Extracts data from the json data file"
@@ -1774,10 +1836,12 @@ def worker(pipeline, recipe, config):
             data = json.load(f)
         return data
 
+    #no changes made
     def get_obs_data(msname):
         "Extracts data from the json data file"
         return pipeline.get_msinfo(msname)
 
+    #no changes made
     def quality_check(n, field, enable=True):
         "Examine the aimfast results to see if they meet specified conditions"
         # If total number of iterations is reached stop
@@ -1892,6 +1956,7 @@ def worker(pipeline, recipe, config):
         # If no condition is met return true to continue
         return True
 
+    #no changes made
     def image_quality_assessment(num, img_dir, field):
         # Check if more than two calibration iterations to combine successive models
         # Combine models <num-1> (or combined) to <num> creat <num+1>-pybdsm-combine
@@ -1953,6 +2018,7 @@ def worker(pipeline, recipe, config):
                    output=pipeline.output,
                    label="{0:s}_{1:d}:: Image fidelity assessment for {2:d}".format(step, num, num))
 
+    #no changes made
     def aimfast_plotting(field):
         """Plot comparisons of catalogs and residuals"""
 
@@ -2029,6 +2095,7 @@ def worker(pipeline, recipe, config):
                        output=pipeline.output,
                        label="Plotting source residuals comparisons")
 
+    #no changes made
     def ragavi_plotting_cubical_tables():
         """Plot self-cal gain tables"""
 
@@ -2112,7 +2179,7 @@ def worker(pipeline, recipe, config):
         if self_cal_iter_counter != 1:
             if not os.path.exists(image_path):
                 raise IOError(
-                    "Trying to restore step {0:d} but the correct direcory ({1:s}) does not exist.".format(self_cal_iter_counter-1,image_path))
+                    "Trying to restore step {0:d} but the correct directory ({1:s}) does not exist.".format(self_cal_iter_counter-1,image_path))
             restore(self_cal_iter_counter-1,selfcal_products, mslist,enable_inter=False)
 
 
@@ -2128,11 +2195,13 @@ def worker(pipeline, recipe, config):
                     os.mkdir(image_path)
                 fake_image(target_iter, 0, get_dir_path(
                     image_path, pipeline), mslist, field)
-                sofia_mask(target_iter, 0, get_dir_path(
-                    image_path, pipeline), field)
+                for s in config['img_stokes']:
+                    sofia_mask(target_iter, 0, get_dir_path(
+                    image_path, pipeline), field, s)
                 recipe.run()
                 recipe.jobs = []
-                config['image']['cleanmask_method'].insert(1,config['image']['cleanmask_method'][self_cal_iter_counter if len(config['image']['cleanmask_method']) > self_cal_iter_counter else -1])
+                config['image']['cleanmask_method'].insert(1,config['image']['cleanmask_method'][
+                    self_cal_iter_counter if len(config['image']['cleanmask_method']) > self_cal_iter_counter else -1])
                 image_path = "{0:s}/image_{1:d}".format(
                     pipeline.continuum, self_cal_iter_counter)
                 image(target_iter, self_cal_iter_counter, get_dir_path(
@@ -2153,10 +2222,11 @@ def worker(pipeline, recipe, config):
                     os.mkdir(selfcal_products)
                 calibrate(target_iter, self_cal_iter_counter, selfcal_products,
                           get_dir_path(image_path, pipeline), mslist, field)
-            mask_key=config['image']['cleanmask_method'][self_cal_iter_counter if len(config['image']['cleanmask_method']) > self_cal_iter_counter else -1]
+            mask_key=config['image']['cleanmask_method'][
+                self_cal_iter_counter if len(config['image']['cleanmask_method']) > self_cal_iter_counter else -1]
             if mask_key=='sofia' and self_cal_iter_counter != cal_niter+1 and pipeline.enable_task(config, 'image'):
-                sofia_mask(target_iter, self_cal_iter_counter, get_dir_path(
-                    image_path, pipeline), field)
+                for s in config['img_stokes']:
+                    sofia_mask(target_iter, self_cal_iter_counter, get_dir_path(image_path, pipeline), field, s)
                 recipe.run()
                 recipe.jobs = []
             self_cal_iter_counter += 1
