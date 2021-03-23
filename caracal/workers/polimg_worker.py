@@ -141,8 +141,6 @@ def worker(pipeline, recipe, config):
         }
         if config['img_join_polarizations'] is False and config['img_specfit_nrcoeff'] > 0:
             image_opts["fit-spectral-pol"] = config['img_specfit_nrcoeff']
-        if config['img_niter'] > 0:
-            image_opts["savesourcelist"] = True
         if not config['img_mfs_weighting']:
             image_opts["nomfsweighting"] = True
         if maxuvl > 0.:
