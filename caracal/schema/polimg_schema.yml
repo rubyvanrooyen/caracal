@@ -142,8 +142,8 @@ mapping:
         example: '2'
       img_stokes:
         type: str
-        enum: ["QU","QUV","Q","U","V"]
-        desc: Stokes image to create. For this worker the options are "QU", "QUV", "Q", "U", "V". We recomand to perform the I imaging with the selfcal worker.
+        enum: ["QU","QUV","IQU","IQUV","I","Q","U","V"]
+        desc: Stokes image to create. For this worker the options are "QU","QUV","IQU","IQUV","I","Q","U","V". Before this step, we recomand to perform the I imaging with the selfcal worker and to do the polarization imaging on the self-calibrated MS.
         required: false
         example: 'QUV'
       img_multiscale:
@@ -166,97 +166,93 @@ mapping:
         desc: Use automatic calculation of the number of w-layers, but multiple that number by the given factor. This can e.g. be useful for increasing w-accuracy. In practice, if there are more cores available than the number of w-layers asked for then the number of w-layers used will equal the number of cores available.
         required: false
         example: '3'
-      image:
+      col:
+        type: str
+        desc: Column(s) to image.
+        required: false
+        example: 'DATA, CORRECTED_DATA'
+      clean_cutoff:
+        type: float
+        desc: Cleaning threshold to be used by WSClean. This is given as the number of sigma_rms to be cleaned down to, where sigma_rms is the noise level estimated by WSClean from the residual image before the start of every major deconvolution iteration.
+        required: false
+        example: '0.5'
+      cleanmask_method:
+        type: str
+        desc: Method used to create the clean mask. The possible values are 1) 'wsclean' to use WSClean's auto-masking (threshold set by clean_mask_threshold below); 2) a prefix string to use an existing .FITS mask located in output/masking and called name.fits; 3) 'sofia' to create a mask for each Stokes with SoFiA, each Stokes will then be imaged "alone" without the options 'join-polarizations' 'join-squared-channels'.
+        required: false
+        example: 'wsclean'
+      cleanmask_thr:
+        type: float
+        desc: Threshold used to create the clean mask when clean_mask_method = 'wsclean' or 'sofia'. This is given as the number of sigma_rms to be cleaned down to, where sigma_rms is the (local) noise level.
+        required: false
+        example: '10.0'
+      cleanmask_localrms:
+        type: bool
+        desc: Use a local-rms measurement when creating a clean mask with clean_mask_method = 'wsclean' or 'sofia'. If clean_mask_method = 'wsclean', this local-rms setting is also used for the clean_threshold above. Otherwise it is only used to define the clean mask, and clean_threshold is in terms of the global noise (rather than the local noise).
+        required: false
+        example: 'False, False'
+      cleanmask_localrms_window:
+        desc: Width of the window used to measure the local rms when creating the clean mask. The window width is in pixels for clean_mask_method = 'sofia', and in PSFs for clean_mask_method = 'wsclean'.
+        type: int
+        required: false
+        example: '31'
+      ncpu_img:
+        type: int
+        example: '0'
+        required: false
+        desc: Number of threads used by wsclean; has a default value of '0'. If specified in the configuration file, will overrule the value set by ncpu, which is the global default for both cubical and wsclean
+      absmem:
+        type: float
+        example: '100.0'
+        required: false
+        desc: "Specifies a fixed amount of memory in gigabytes."
+      img_sofia_settings:
+        desc: SoFiA source finder settings used for the imaging iterations whose entry in 'image/cleanmask_method' below is 'sofia'. The resulting clean mask is located in <output>/masking.
         type: map
-        desc: Imaging parameters.
         mapping:
-          enable:
+          kernels:
+            seq:
+              - type: float
+            desc: FWHM of spatial Gaussian kernels in pixels.
+            required: false
+            example: '0., 3., 6., 9.'
+          pospix:
             type: bool
-            desc: Enable the 'image' segment.
+            desc: Merges only positive pixels of sources in mask. In this worker it is set to 'False' to clean positive and negative pixels in QU Stokes images.
             required: false
-            example: 'True'
-          col:
-            type: str
-            desc: Column(s) to image.
-            required: false
-            example: 'DATA, CORRECTED_DATA'
-          clean_cutoff:
-            type: float
-            desc: Cleaning threshold to be used by WSClean. This is given as the number of sigma_rms to be cleaned down to, where sigma_rms is the noise level estimated by WSClean from the residual image before the start of every major deconvolution iteration.
-            required: false
-            example: '0.5'
-          cleanmask_method:
-            type: str
-            desc: Method used to create the clean mask. The possible values are 1) 'wsclean' to use WSClean's auto-masking (threshold set by clean_mask_threshold below); 2) a prefix string to use an existing .FITS mask located in output/masking and called name.fits. The latter .FITS mask could be the one created by sofia in the selfcal worker.
-            required: false
-            example: 'wsclean'
-          cleanmask_thr:
-            type: float
-            desc: Threshold used to create the clean mask when clean_mask_method = 'wsclean' or 'sofia'. This is given as the number of sigma_rms to be cleaned down to, where sigma_rms is the (local) noise level.
-            required: false
-            example: '10.0'
-          cleanmask_localrms:
+            example: 'False'
+          flag:
+            desc: Set whether flag regions are to be used (True) or not (False).
             type: bool
-            desc: Use a local-rms measurement when creating a clean mask with clean_mask_method = 'wsclean' or 'sofia'. If clean_mask_method = 'wsclean', this local-rms setting is also used for the clean_threshold above. Otherwise it is only used to define the clean mask, and clean_threshold is in terms of the global noise (rather than the local noise).
             required: false
-            example: 'False, False'
-          cleanmask_localrms_window:
-            desc: Width of the window used to measure the local rms when creating the clean mask. The window width is in pixels for clean_mask_method = 'sofia', and in PSFs for clean_mask_method = 'wsclean'.
-            type: int
+            example: 'False'
+          flagregion:
+            desc: Pixel/channel range(s) to be flagged prior to source finding. Format is [[x1, x2, y1, y2, z1, z2], ...].
+            seq:
+              - type: str
             required: false
-            example: '31'
-          ncpu_img: 
-            type: int
-            example: '0'
+            example: ''
+          inputmask:
+            type: str
+            desc: User-provided input-mask that will be supplemented by the SoFiA mask, created through SoFiA source-finding.
             required: false
-            desc: Number of threads used by wsclean; has a default value of '0'. If specified in the configuration file, will overrule the value set by ncpu, which is the global default for both cubical and wsclean
-          absmem:   
-            type: float
-            example: '100.0'
+            example: ''
+          fornax_special:
+            desc: Activate masking of Fornax A using SoFiA.
+            type: bool
             required: false
-            desc: "Specifies a fixed amount of memory in gigabytes."
-#      extract_sources:
-#        type: map
-#        desc: Source-finding parameters.
-#        mapping:
-#          enable:
-#            type: bool
-#            desc: Enable the 'extract_sources' segment.
-#            required: false
-#            example: 'False'
-#          sourcefinder:
-#            type: str
-#            enum: ["pybdsm", "sofia"]
-#            desc: Set the source finder to be used. Options are 'pybdsm' (i.e. pybdsf) and 'sofia'.
-#            required: false
-#            example: 'pybdsm'
-#          local_rms:
-#            type: bool
-#            desc: Use a local-rms estimate when applying the source-finding detection threshold.
-#            required: false
-#            example: 'False'
-#          spi:
-#            type: bool
-#            desc: Extract the spectral index for the fitted sources.
-#            required: false
-#            example: 'False'           # if not specified no spi will be determined
-#          thr_pix:
-#            seq:
-#              - type: int
-#            desc: Pixel threshold to be used for the source finder. I.e. the minimum number of contiguous pixels for emission to be classed as a 'source'.
-#            required: false
-#            example: '5'
-#          thr_isl:
-#            seq:
-#              - type: int
-#            desc: Threshold to be used by the source finder to set the island boundary, given in the number of sigma above the mean. This determines the extent of the island used for fitting.
-#            required: false
-#            example: '3'
-#          detection_image:
-#            type: bool
-#            desc: Constrain the PyBDSM source-finding to only find sources included in the clean model.
-#            required: false
-#            example: 'False'
+            example: 'False'
+          fornax_thr:
+            desc: SoFiA source-finding threshold, in terms of the number of sigma_rms to go down to (i.e. the minimum signal-to-noise ratio).
+            seq:
+              - type: float
+            required: false
+            example: '4.0'
+          fornax_sofia:
+            type: bool
+            desc: Use SoFiA for the mask of Fornax A, instead of that by Fomalont.
+            required: false
+            example: 'False'
       flagging_summary:
         type: map
         desc: Output the flagging summary.
