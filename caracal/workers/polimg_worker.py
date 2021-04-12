@@ -496,11 +496,12 @@ def worker(pipeline, recipe, config):
 
         mask_key = config['cleanmask_method']
 
-        if mask_key != 'sofia':
+        #join polarization only if they will be imaged together
+        joinpol=False
+        if mask_key == 'wsclean':
             joinpol = config['img_join_polarizations']
-            image_opts["join-polarizations"] = joinpol
-        else:
-            joinpol=False
+
+        image_opts["join-polarizations"] = joinpol
 
         if joinpol is False and config['img_specfit_nrcoeff'] > 0:
             image_opts["fit-spectral-pol"] = config['img_specfit_nrcoeff']
@@ -539,14 +540,21 @@ def worker(pipeline, recipe, config):
                        input=pipeline.input,
                        output=pipeline.output,
                        label='{:s}:: Make wsclean image (iter {})'.format(step, num))
-        elif mask_key == 'sofia':
+        else:
             for stokes in config['img_stokes']:
-                fits_mask = 'masking/{0:s}_{1:s}_{2:d}_{3:s}_clean_mask.fits'.format(prefix, field, num, stokes)
-                if not os.path.isfile('{0:s}/{1:s}'.format(pipeline.output, fits_mask)):
-                    raise caracal.ConfigurationError(
-                        "SoFiA clean mask {0:s}/{1:s} not found. Something must have gone wrong with the SoFiA run" \
-                        " (maybe the detection threshold was too high?). Please check the logs.".format(pipeline.output,
-                                                                                                        fits_mask))
+                if mask_key == 'sofia':
+                    fits_mask = 'masking/{0:s}_{1:s}_{2:d}_{3:s}_clean_mask.fits'.format(prefix, field, num, stokes)
+                    if not os.path.isfile('{0:s}/{1:s}'.format(pipeline.output, fits_mask)):
+                        raise caracal.ConfigurationError(
+                            "SoFiA clean mask {0:s}/{1:s} not found. Something must have gone wrong with the SoFiA run" \
+                            " (maybe the detection threshold was too high?). Please check the logs.".format(pipeline.output,fits_mask))
+                else:
+                    fits_mask = 'masking/{0:s}.fits'.format(mask_key)
+                    if not os.path.isfile('{0:s}/{1:s}'.format(pipeline.output, fits_mask)):
+                        raise caracal.ConfigurationError(
+                            "Clean mask {0:s}/{1:s} not found. Please make sure that you have given the correct mask label" \
+                            " in cleanmask_method, and that the mask exists.".format(pipeline.output, fits_mask))
+
                 image_opts.update({
                     "pol": stokes,
                     "fitsmask": '{0:s}:output'.format(fits_mask),
@@ -559,23 +567,6 @@ def worker(pipeline, recipe, config):
                            label='{:s}:: Make wsclean image (selfcal iter {})'.format(step, num, stokes))
                 recipe.run()
                 recipe.jobs = []
-                rename_single_stokes(img_dir, field, stokes)
-        else:
-            fits_mask = 'masking/{0:s}.fits'.format(mask_key)
-            if not os.path.isfile('{0:s}/{1:s}'.format(pipeline.output, fits_mask)):
-                raise caracal.ConfigurationError(
-                    "Clean mask {0:s}/{1:s} not found. Please make sure that you have given the correct mask label" \
-                    " in cleanmask_method, and that the mask exists.".format(pipeline.output, fits_mask))
-            image_opts.update({
-                "pol": config['img_stokes'],
-                "fitsmask": '{0:s}:output'.format(fits_mask),
-                "local-rms": False,
-            })
-            recipe.add('cab/wsclean', step,
-                       image_opts,
-                       input=pipeline.input,
-                       output=pipeline.output,
-                       label='{:s}:: Make wsclean image {}'.format(step, num))
 
     target_iter = 0
     for target in all_targets:
