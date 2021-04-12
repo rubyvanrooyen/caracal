@@ -497,8 +497,8 @@ def worker(pipeline, recipe, config):
         mask_key = config['cleanmask_method']
 
         if mask_key != 'sofia':
-            jonpol = config['img_join_polarizations']
-            image_opt["join-polarizations"] = joinpol
+            joinpol = config['img_join_polarizations']
+            image_opts["join-polarizations"] = joinpol
         else:
             joinpol=False
 
