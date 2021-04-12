@@ -194,7 +194,7 @@ def worker(pipeline, recipe, config):
             "join-polarizations": config['img_join_polarizations'],
             "local-rms": False,
             "auto-mask": 6,
-            "auto-threshold": config['clean_cutoff'][0],
+            "auto-threshold": config['clean_cutoff'],
             "fitbeam": False,
             "parallel-deconvolution": sdm.dismissable(wscl_parallel_deconv),
             "nwlayers-factor": nwlayers_factor,
@@ -271,7 +271,7 @@ def worker(pipeline, recipe, config):
                 "merge.minSizeZ": 1,
             }
 
-        outmask = pipeline.prefix + '_' + field + '_' + stokes + '_clean'
+        outmask = pipeline.prefix + '_' + field + '_' + str(num+1) + '_' + stokes + '_clean'
 
         sofia_opts = {
             "import.inFile": imagename,
@@ -486,14 +486,23 @@ def worker(pipeline, recipe, config):
             "channelsout": config['img_nchans'],
             "joinchannels": config['img_joinchans'],
             "squared-channel-joining": config['img_squared_chansjoin'],
-            "join-polarizations": config['img_join_polarizations'],
+            #"join-polarizations": config['img_join_polarizations'],
             "auto-threshold": config['clean_cutoff'],
             "parallel-deconvolution": sdm.dismissable(wscl_parallel_deconv),
             "nwlayers-factor": nwlayers_factor,
             "threads": ncpu_img,
             "absmem": config['absmem'],
         }
-        if config['img_join_polarizations'] is False and config['img_specfit_nrcoeff'] > 0:
+
+        mask_key = config['cleanmask_method']
+
+        if mask_key != 'sofia':
+            jonpol = config['img_join_polarizations']
+            image_opt["join-polarizations"] = joinpol
+        else:
+            joinpol=False
+
+        if joinpol is False and config['img_specfit_nrcoeff'] > 0:
             image_opts["fit-spectral-pol"] = config['img_specfit_nrcoeff']
             if config['img_niter'] > 0 and config['img_stokes'] == 'I':
                 image_opts["savesourcelist"] = True
@@ -515,7 +524,6 @@ def worker(pipeline, recipe, config):
             if multiscale_scales:
                 image_opts.update({"multiscale-scales": list(map(int, multiscale_scales.split(',')))})
 
-        mask_key = config['cleanmask_method']
         if mask_key == 'wsclean':
             image_opts.update({
                 "pol": config['img_stokes'],
@@ -579,7 +587,7 @@ def worker(pipeline, recipe, config):
             if not os.path.exists(image_path):
                 os.mkdir(image_path)
             fake_image(target_iter, 0, get_dir_path(image_path, pipeline), mslist, field)
-            # rename single stokes files (wsclean do not label the single stokes outputs)
+            #rename single stokes files (wsclean do not label the single stokes outputs)
             alone = ["I", "Q", "U", "V"]
             stokes = config['img_stokes']
             if stokes in alone:
