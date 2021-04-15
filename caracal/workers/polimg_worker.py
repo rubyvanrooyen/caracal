@@ -572,6 +572,9 @@ def worker(pipeline, recipe, config):
     for target in all_targets:
         mslist = ms_dict[target]
         field = utils.filter_name(target)
+	image_path = "{0:s}/polarization".format(pipeline.continuum)
+        if not os.path.exists(image_path):
+            os.mkdir(image_path)
 
         if config['cleanmask_method'] == 'sofia':
             image_path = "{0:s}/polarization/image_0".format(pipeline.continuum)
