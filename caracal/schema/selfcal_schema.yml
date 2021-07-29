@@ -51,10 +51,10 @@ mapping:
         required: false
         example: 'cubical'
       spwid:
-        type: int
-        desc: Provide spectral window ID.
+        type: str
+        desc: Provide spectral window ID. Default reads all. Can be specified as e.g. "5","5,6,7", "5~7" (inclusive range), "5:8" (exclusive range),"5:" (from 5 to last).
         required: false
-        example: '0'
+        example: ''
       ncpu:
         type: int
         desc: Number of CPUs to use for distributed processing. If set to 0 all available CPUs are used. This parameter is passed on to the following software in the selfcal worker, WSClean for imaging, Cubical and MeqTrees for calibration, PyBDSF for source finding.
