@@ -1383,9 +1383,9 @@ def worker(pipeline, recipe, config):
                 "log-boring": True,
                 "dd-dd-term": False,
                 "model-ddes": 'never',
-            }
-	    if spwid :
-		cubical_opts.update({"sel-ddid": spwid})
+            }                                                                                                                          
+	    if spwid:
+                cubical_opts.update({"sel-ddid": spwid})
             if min_uvw > 0:
                 cubical_opts.update({"sol-min-bl": min_uvw})
             if flags != "":
@@ -1628,8 +1628,8 @@ def worker(pipeline, recipe, config):
                 "dd-dd-term": False,
                 "model-ddes": 'never',
             }
-	    if spwid :
-		cubical_opts.update({"sel-ddid": spwid})
+            if spwid :
+                cubical_opts.update({"sel-ddid": spwid})
             #Set the table name
             if gupdate == 'phase-diag' and matrix_type == 'Fslope':
                 g_table_name = "{0:s}/{3:s}-g-delay-gains-{1:d}-{2:s}.parmdb:output".format(get_dir_path(prod_path,
