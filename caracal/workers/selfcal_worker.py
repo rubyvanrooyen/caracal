@@ -1349,7 +1349,7 @@ def worker(pipeline, recipe, config):
                 "data-ms": msname,
                 "data-column": 'DATA',
                 "model-list": modellist,
-                "sel-ddid": sdm.dismissable(spwid),
+                #"sel-ddid": sdm.dismissable(spwid),
                 "dist-ncpu": ncpu,
                 "log-memory": True,
                 "sol-jones": jones_chain,
@@ -1384,6 +1384,8 @@ def worker(pipeline, recipe, config):
                 "dd-dd-term": False,
                 "model-ddes": 'never',
             }
+	    if spwid :
+		cubical_opts.update({"sel-ddid": spwid})
             if min_uvw > 0:
                 cubical_opts.update({"sol-min-bl": min_uvw})
             if flags != "":
@@ -1598,7 +1600,7 @@ def worker(pipeline, recipe, config):
             cubical_gain_interp_opts = {
                 "data-ms": msname_out,
                 "data-column": 'DATA',
-                "sel-ddid": sdm.dismissable(spwid),
+                #"sel-ddid": sdm.dismissable(spwid),
                 "sol-jones": jones_chain,
                 "sol-term-iters": ",".join(sol_terms_add),
                 "sel-diag": take_diag_terms,
@@ -1626,6 +1628,8 @@ def worker(pipeline, recipe, config):
                 "dd-dd-term": False,
                 "model-ddes": 'never',
             }
+	    if spwid :
+		cubical_opts.update({"sel-ddid": spwid})
             #Set the table name
             if gupdate == 'phase-diag' and matrix_type == 'Fslope':
                 g_table_name = "{0:s}/{3:s}-g-delay-gains-{1:d}-{2:s}.parmdb:output".format(get_dir_path(prod_path,
