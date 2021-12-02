@@ -316,25 +316,28 @@ mapping:
             type: int
             required: false
             example: '4'
-          ragavi_plot:
+          plot_gains:
             type: map
-            desc: Use ragavi to plot diagnostic plots for self-calibration.
+            desc: Plot gain solutions from cubical calibration
             mapping:
               enable:
                 type: bool
-                desc: Enable the plotting of diagnostics, using ragavi.
+                desc: enable plotting gains
                 required: false
                 example: 'False'
+              plotter:
+                type: str
+                desc: Which plotter to use, options are; cubical or ragavi. Default is 'cubical'.
+                required: false
+                example: 'cubical'
               gaintype:
-                seq:
-                - type: str
-                desc: List of gain solution types. Options are 'F' (flux-calibration solutions), 'B' (bandpass-calibration solutions), 'K' (delay-calibration solutions), 'G' (gain-calibration solutions), and 'D' (D-Jones leakage-calibration solutions).
+                type: str
+                desc: A comma spearated string of the gain(s) to plot. Could be 'G', 'DE', 'B', 'K'. Default is 'G'.
                 required: false
                 example: 'G'
-              field:
-                seq:
-                - type: int
-                desc: Fields to plot. Specify by field ID.
+              direction:
+                type: int
+                desc: Direction to plot. Default is '0'.
                 required: false
                 example: '0'
       cal_meqtrees:

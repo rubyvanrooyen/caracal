@@ -17,6 +17,7 @@ from typing import Any
 from caracal.workers.utils import manage_flagsets as manflags
 import psutil
 
+
 NAME = 'Continuum Imaging and Self-calibration Loop'
 LABEL = 'selfcal'
 
@@ -1345,6 +1346,7 @@ def worker(pipeline, recipe, config):
             else:
                 raise RuntimeError("Something has corrupted the selfcal run")
             msbase = os.path.splitext(msname)[0]
+            cubical_outp = get_dir_path(prod_path, pipeline)
             cubical_opts = {
                 "data-ms": msname,
                 "data-column": 'DATA',
@@ -1355,16 +1357,15 @@ def worker(pipeline, recipe, config):
                 "sol-jones": jones_chain,
                 "sol-term-iters": ",".join(sol_terms_add),
                 "sel-diag": take_diag_terms,
-                "out-name": '{0:s}/{1:s}_{2:s}_{3:d}_cubical'.format(get_dir_path(prod_path,
-                                                                                  pipeline), prefix, msbase, num),
+                "out-name": '{0:s}/{1:s}-{2:s}-{3:d}'.format(cubical_outp, prefix, msbase, num),
                 "out-mode": CUBICAL_OUT[config[key]['output_data'][num-1 if len(config[key]['output_data']) >= num else -1]],
                 "out-plots": True,
                 "dist-max-chunks": config['cal_cubical']['dist_max_chunks'],
-                "out-casa-gaintables": True,
+                "out-casa-gaintables": False,
                 "weight-column": config['cal_cubical']['weight_col'],
                 "montblanc-dtype": 'float',
-                "bbc-save-to": "{0:s}/bbc-gains-{1:d}-{2:s}.parmdb:output".format(get_dir_path(prod_path,
-                                                                                               pipeline), num, msbase),
+                "bbc-save-to": "{0:s}/{1:s}-bbc-gains-{2:d}-{3:s}.parmdb:output".format(
+                    cubical_outp, prefix, num, msbase),
                 "g-solvable": True,
                 "g-type": CUBICAL_MT[matrix_type],
                 "g-update-type": gupdate,
@@ -1444,7 +1445,7 @@ def worker(pipeline, recipe, config):
 
     def restore(num,  prod_path,mslist_out,enable_inter=True):
         key = 'calibrate'
-	    # to achieve accurate restauration we need to reset all parameters properly
+        # to achieve accurate restauration we need to reset all parameters properly
         matrix_type = config[key]['gain_matrix_type'][
             num - 1 if len(config[key]['gain_matrix_type']) >= num else -1]
         # Decide if take diagonal terms into account
@@ -2029,44 +2030,92 @@ def worker(pipeline, recipe, config):
                        output=pipeline.output,
                        label="Plotting source residuals comparisons")
 
-    def ragavi_plotting_cubical_tables():
-        """Plot self-cal gain tables"""
+    def ragavi_plotting_cubical_tables(gain, direction):
+        """
+        Plot solutions with the new cubical-compatible ragavi
+        Parameters
+        ----------
+        gain: str
+            Could be G, dE or K
+        direction: int
+            Direction which to plot
+        """
 
-        B_tables = glob.glob('{0:s}/{1:s}/{2:s}/{3:s}'.format(pipeline.output,
-                                                              get_dir_path(pipeline.continuum, pipeline), 'selfcal_products', 'g-gains*B.casa'))
-        if len(B_tables) > 1:
-            step = 'plot-btab'
+        caracal.log.warning("RAGaVi plotting for cubical is not yet implemented")
+        caracal.log.info("Reverting to 'cubical'")
+        cubical_plotting_cubical_tables(gain, direction)
 
-            gain_table_name = [table.split('output/')[-1] for table in B_tables]  # This probably needs changing?
-            recipe.add('cab/ragavi', step,
-                       {
-                           "table": [tab+":output" for tab in gain_table_name],
-                           "gaintype": config['cal_cubical']['ragavi_plot']['gaintype'],
-                           "field": config['cal_cubical']['ragavi_plot']['field'],
-                           "htmlname": '{0:s}/{1:s}/{2:s}_self-cal_G_gain_plots'.format(get_dir_path(pipeline.diagnostic_plots,
-                                                                                                     pipeline), 'selfcal', prefix)
-                       },
-                       input=pipeline.input,
-                       output=pipeline.output,
-                       label='{0:s}:: Plot gaincal phase : {1:s}'.format(step, ' '.join(B_tables)))
+        # #split the comma separated gains
+        # gain = gain.lower().replace(" ", "")
+        
+        # gains = dict(k="gain", g="gain", b="bandpass", de="gain", d="leakage")
+        
+        # for ga in gain.split(","):
+        #     sstring = '{0:s}/{1:s}/{2:s}/{3:s}'.format(
+        #         pipeline.output, get_dir_path(pipeline.continuum, pipeline),
+        #         'selfcal_products', f'*-{ga}*-gains*.parmdb')
+        #     tables = glob.glob(sstring)
+            
+        #     if len(tables)==0:
+        #         continue
+            
+        #     gain_table_name = [table.split('output/')[-1] for table in tables]
+        #     step = f'plot-cubical_{ga}_table'
 
-        D_tables = glob.glob('{0:s}/{1:s}/{2:s}/{3:s}'.format(pipeline.output,
-                                                              get_dir_path(pipeline.continuum, pipeline), 'selfcal_products', 'g-gains*D.casa'))
-        if len(D_tables) > 1:
-            step = 'plot_dtab'
+        #     recipe.add('cab/ragavi_gains_cubical', step,
+        #         {
+        #             "table": [tab+":output" for tab in gain_table_name],
+        #             "gaintype": config['cal_cubical']['ragavi_plot']['gaintype'],
+        #             "field": config['cal_cubical']['ragavi_plot']['field'],
+        #             "htmlname": '{0:s}/{1:s}/{2:s}_self-cal_G_gain_plots'.format(get_dir_path(pipeline.diagnostic_plots,
+        #                                                                                         pipeline), 'selfcal', prefix)
+        #         },
+        #     input=pipeline.input,
+        #     output=pipeline.output,
+        #     label='{0:s}:: Plot gain table(s) : {1:s}'.format(step, ' '.join(tables)))
 
-            gain_table_name = [table.split(pipeline.output)[-1] for table in D_tables]
-            recipe.add('cab/ragavi', step,
-                       {
-                           "table": [tab+":output" for tab in gain_table_name],
-                           "gaintype": config['cal_cubical']['ragavi_plot']['gaintype'],
-                           "field": config['cal_cubical']['ragavi_plot']['field'],
-                           "htmlname": '{0:s}/{1:s}/{2:s}_self-cal_D_gain_plots'.format(get_dir_path(pipeline.diagnostic_plots,
-                                                                                                     pipeline), 'selfcal', prefix)
-                       },
-                       input=pipeline.input,
-                       output=pipeline.output,
-                       label='{0:s}:: Plot gain tables : {1:s}'.format(step, ' '.join(D_tables)))
+
+    
+    def cubical_plotting_cubical_tables(gain, direction):
+        """
+        Plot solutions with the cubical plot-gain-solutions plotter
+        Parameters
+        ----------
+        gain: str
+            Could be G, dE or K
+        direction: int
+            Direction which to plot
+        """
+        #split the comma separated gains
+        gain = gain.lower().replace(" ", "")
+        gains = dict(k="gain", g="gain", b="bandpass", de="gain", d="leakage")
+        
+        for ga in gain.split(","):
+            sstring = '{0:s}/{1:s}/{2:s}/{3:s}'.format(
+                pipeline.output, get_dir_path(pipeline.continuum, pipeline),
+                'selfcal_products', f'*-{ga}*-gains*.parmdb')
+            tables = glob.glob(sstring)
+            
+            if len(tables)==0:
+                continue
+            
+            gain_table_name = [table.split('output/')[-1] for table in tables]
+            step = f'plot-cubical_{ga}_table'
+
+            recipe.add('cab/cubical_pgs', step,
+            {
+                "files": [tab+":output" for tab in gain_table_name],
+                gains[gain.lower()]: True,
+                "nrow": 7,
+                "ncol": 10,
+                "dir": direction,
+                "output-name": '{0:s}/{1:s}/{2:s}_self-cal_{3:s}_gain_plots'.format(
+                    get_dir_path(pipeline.diagnostic_plots, pipeline), 'selfcal', prefix, ga)
+            },
+            input=pipeline.input,
+            output=pipeline.output,
+            label='{0:s}:: Plot gain table : {1:s}'.format(step, ' '.join(tables)))
+
 
     # decide which tool to use for calibration
     calwith = config['calibrate_with'].lower()
@@ -2216,9 +2265,17 @@ def worker(pipeline, recipe, config):
                     os.remove(plot)
 
         if pipeline.enable_task(config, 'calibrate'):
-            if config['cal_cubical']['ragavi_plot']['enable']:
-                ragavi_plotting_cubical_tables()
-
+            plot_gains = config['cal_cubical']['plot_gains']
+            if plot_gains["enable"]:
+                #contains functions for the associated plotters
+                plotters = {
+                        "cubical": cubical_plotting_cubical_tables,
+                        "ragavi": ragavi_plotting_cubical_tables
+                    }
+                #call the plotter's function
+                plotters.get(plot_gains['plotter'])(
+                    plot_gains['gaintype'], plot_gains['direction'])
+        
         if pipeline.enable_task(config, 'restore_model'):
             if config['restore_model']['model']:
                 num = config['restore_model']['model']
