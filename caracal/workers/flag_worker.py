@@ -23,7 +23,14 @@ def flagUzeros(filename,cutoff):
         flag=t.getcol('FLAG')
         uvw=t.getcol('UVW')
 
-        index=np.where(np.abs(uvw[:,0]) < float(cutoff))[0]
+        # U only selection
+        #index=np.where(np.abs(uvw[:,0]) < float(cutoff))[0]
+        # U and V selection (square)
+        index=np.where(
+          (np.abs(uvw[:,0]) < float(cutoff))*
+          (np.abs(uvw[:,1]) > 0)*
+          (np.abs(uvw[:,1]) < 10)
+          )[0]
 
         visTot=uvw.shape[0]
         percent=float(len(index))/float(visTot)*100.
