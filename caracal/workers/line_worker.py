@@ -767,7 +767,7 @@ def worker(pipeline, recipe, config):
                 config['make_cube']['robust'])
         else:
             weight = config['make_cube']['weight']
-        wscl_niter = config['make_cube']['wscl_sofia_niter']
+        wscl_niter = config['make_cube']['wscl_sofia_niter'] if not config['make_cube']['wscl_onlypsf'] else 1
         wscl_tol = config['make_cube']['wscl_sofia_converge']
 
         line_image_opts = {

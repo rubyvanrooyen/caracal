@@ -362,7 +362,7 @@ mapping:
             required: false
             example: '0.1'
           wscl_onlypsf:
-            desc: If set to true, WSClean will only make the dirty PSF cube, adding the best-fitting Gaussian parameter of each channel to the header. No other cube is made, and the parameter niter is ignored.
+            desc: If set to true, WSClean will only make the dirty PSF cube, adding the best-fitting Gaussian parameter of each channel to the header. No other cube is made, and all parameters having to do with cleaning are ignored.
             type: bool
             required: false
             example: 'False'
