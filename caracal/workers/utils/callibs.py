@@ -6,6 +6,7 @@ from collections import OrderedDict, Iterable
 _MODES = dict(
     K       = "delay_cal", 
     B       = "bp_cal", 
+    P       = "bp_cal",
     F       = "gain_cal", 
     G       = "gain_cal",   # both F and G serve the same purpose, so same mode
     Gpol    = "gain_xcal",
